@@ -1,0 +1,10 @@
+<div class="modal-resource-action">
+  <div class="modal-body">
+    <h1>{{message}}</h1>
+    <p ng-if="details">{{details}}</p>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-lg" ng-class="okButtonClass" type="button" ng-click="confirm()">{{okButtonText}}</button>
+    <button class="btn btn-lg btn-default" type="button" ng-click="cancel()">{{cancelButtonText}}</button>
+  </div>
+</div>

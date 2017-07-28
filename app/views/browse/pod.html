@@ -1,0 +1,222 @@
+<project-header class="top-header"></project-header>
+  <project-page>
+
+    <!-- Middle section -->
+    <div class="middle-section">
+      <div class="middle-container">
+        <div class="middle-header">
+          <div class="container-fluid">
+            <breadcrumbs breadcrumbs="breadcrumbs"></breadcrumbs>
+            <alerts alerts="alerts"></alerts>
+            <div ng-if="!loaded" class="mar-top-xl">Loading...</div>
+            <div ng-if="pod">
+              <h1>
+                {{pod.metadata.name}}
+
+                <div class="pull-right dropdown" ng-hide="!('pods' | canIDoAny)">
+                  <button type="button" class="dropdown-toggle actions-dropdown-btn btn btn-default hidden-xs" data-toggle="dropdown">
+                    Actions
+                    <span class="caret"></span>
+                  </button>
+                  <a href=""
+                     class="dropdown-toggle actions-dropdown-kebab visible-xs-inline"
+                     data-toggle="dropdown"><i class="fa fa-ellipsis-v"></i><span class="sr-only">Actions</span></a>
+                  <ul class="dropdown-menu actions action-button">
+                    <li ng-if="pod | annotation:'deploymentConfig' && 'deploymentconfigs' | canI : 'update'">
+                      <a ng-href="project/{{project.metadata.name}}/attach-pvc?deploymentconfig={{pod | annotation:'deploymentConfig'}}"
+                         role="button">Attach Storage</a>
+                    </li>
+                    <li ng-if="'pods' | canI : 'update'">
+                      <a ng-href="{{pod | editYamlURL}}" role="button">Edit YAML</a>
+                    </li>
+                    <li ng-if="'pods' | canI : 'delete'">
+                      <delete-link
+                        kind="Pod"
+                        resource-name="{{pod.metadata.name}}"
+                        project-name="{{pod.metadata.namespace}}"
+                        alerts="alerts">
+                      </delete-link>
+                    </li>
+                  </ul>
+                </div>
+                <span ng-if="pod | isTroubledPod">
+                  <pod-warnings pod="pod"></pod-warnings>
+                </span>
+                <small class="meta">created <relative-timestamp timestamp="pod.metadata.creationTimestamp"></relative-timestamp></small>
+              </h1>
+              <labels labels="pod.metadata.labels" clickable="true" kind="pods" project-name="{{pod.metadata.namespace}}" limit="3"></labels>
+            </div>
+          </div>
+        </div><!-- /middle-header-->
+        <div class="middle-content" persist-tab-state>
+          <div class="container-fluid">
+            <div class="row" ng-if="pod">
+              <div class="col-md-12">
+                <uib-tabset>
+                  <uib-tab heading="Details" active="selectedTab.details">
+                    <uib-tab-heading>Details</uib-tab-heading>
+                    <ng-include src=" 'views/browse/_pod-details.html' "></ng-include>
+                  </uib-tab>
+                  <uib-tab heading="Environment" active="selectedTab.environment">
+                    <uib-tab-heading>Environment</uib-tab-heading>
+                    <div ng-repeat="container in pod.spec.containers">
+                      <h3>Container {{container.name}} Environment Variables</h3>
+                      <key-value-editor
+                        entries="container.env"
+                        is-readonly
+                        cannot-add
+                        cannot-sort
+                        cannot-delete
+                        ng-if="container.env.length"></key-value-editor>
+                      <em ng-if="!container.env.length">The container specification has no environment variables set.</em>
+                    </div>
+                  </uib-tab>
+                  <uib-tab ng-if="metricsAvailable" heading="Metrics" active="selectedTab.metrics">
+                    <!-- Use ng-if to remove the metrics directive when the tab is not active so
+                         we don't update in the background. -->
+                    <pod-metrics
+                      ng-if="selectedTab.metrics"
+                      pod="pod">
+                    </pod-metrics>
+                  </uib-tab>
+
+                  <uib-tab active="selectedTab.logs" ng-if="'pods/log' | canI : 'get'">
+                    <uib-tab-heading>Logs</uib-tab-heading>
+
+                    <log-viewer
+                      ng-if="selectedTab.logs"
+                      follow-affix-top="390"
+                      follow-affix-bottom="90"
+                      resource="pods/log"
+                      name="pod.metadata.name"
+                      context="projectContext"
+                      options="logOptions"
+                      empty="logEmpty"
+                      run="logCanRun">
+
+                      <label for="selectLogContainer">Container:</label>
+
+                      <span ng-if="pod.spec.containers.length === 1">
+                        {{pod.spec.containers[0].name}}
+                      </span>
+
+                      <select
+                        id="selectLogContainer"
+                        ng-if="pod.spec.containers.length > 1"
+                        ng-model="logOptions.container"
+                        ng-options="container.name as container.name for container in pod.spec.containers"
+                        ng-init="logOptions.container = pod.spec.containers[0].name">
+                      </select>
+
+                      <span ng-if="containerStateReason || containerStatusKey">
+                        <span class="dash">&mdash;</span>
+                        <status-icon status="containerStateReason || (containerStatusKey | capitalize)"></status-icon>
+                        <span>{{containerStateReason || containerStatusKey | sentenceCase}}</span>
+                      </span>
+
+                      <span ng-if="containerStartTime && !logEmpty">
+                        <span class="log-timestamps">Log from {{containerStartTime  | date : 'short'}} <span ng-if="containerEndTime">to {{containerEndTime  | date : 'short'}}</span></span>
+                      </span>
+
+                    </log-viewer>
+                  </uib-tab>
+
+                  <uib-tab
+                    active="selectedTab.terminal"
+                    select="terminalTabWasSelected = true"
+                    ng-init="containers = pod.status.containerStatuses">
+                      <uib-tab-heading>Terminal</uib-tab-heading>
+
+                      <div ng-if="noContainersYet" class="empty-state-message text-center">
+                        <h2>
+                          No running containers
+                        </h2>
+                      </div>
+
+                      <div ng-if="!noContainersYet">
+                        <div class="mar-bottom-md">
+                          <span class="pficon pficon-info" aria-hidden="true"></span>
+                          When you navigate away from this pod, any open terminal connections will be closed.
+                          This will kill any foreground processes you started from the terminal.
+                        </div>
+
+                        <alerts ng-if="selectedTerminalContainer.status === 'disconnected'" alerts="terminalDisconnectAlert"></alerts>
+
+                        <div class="mar-left-xl mar-bottom-lg">
+                          <div class="row">
+                            <div class="pad-left-none pad-bottom-md col-sm-6 col-lg-4">
+                              <span ng-if="pod.spec.containers.length === 1">
+                                <label for="selectLogContainer">Container:</label>
+                                {{pod.spec.containers[0].name}}
+                               </span>
+
+                              <ui-select
+                                ng-model="selectedTerminalContainer"
+                                on-select="onTerminalSelectChange(selectedTerminalContainer)"
+                                ng-if="pod.spec.containers.length > 1"
+                                class="mar-left-none pad-left-none pad-right-none">
+                               <ui-select-match
+                                  class="truncate"
+                                  placeholder="Container Name">
+                                    <span class="pad-left-md">
+                                      {{selectedTerminalContainer.containerName}}
+                                    </span>
+                                </ui-select-match>
+                                <ui-select-choices
+                                  repeat="term in containerTerminals | filter: $select.search"
+                                  ui-disable-choice="(term.containerState !== 'running') && !term.isUsed">
+                                  <div row>
+                                    <span ng-bind-html="term.containerName | highlight: $select.search">
+                                    </span>
+                                    <span flex></span>
+                                    <span
+                                      ng-if="term.isUsed && (term.containerState === 'running')"
+                                      ng-class="{'text-muted' : (term.status === 'disconnected')}">
+                                        {{term.status}}
+                                    </span>
+                                    <span
+                                      ng-if="term.containerState !== 'running'"
+                                      ng-class="{'text-muted' : !term.isUsed}">
+                                        {{term.containerState}}
+                                    </span>
+                                  </div>
+                                </ui-select-choices>
+                              </ui-select>
+                            </div>
+                          </div>
+
+                          <div class="container-terminal-wrapper">
+                            <div class="row" ng-repeat="term in containerTerminals">
+                              <div class="column">
+                                <kubernetes-container-terminal
+                                  prevent="!terminalTabWasSelected"
+                                  ng-if="term.isUsed"
+                                  ng-show="term.isVisible"
+                                  pod="pod"
+                                  container="term.containerName"
+                                  status="term.status"
+                                  rows="terminalRows"
+                                  cols="terminalCols"
+                                  autofocus="true"
+                                  command='["/bin/sh", "-i", "-c", "TERM=xterm /bin/sh"]'
+                                  >
+                                </kubernetes-container-terminal>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+    	            </uib-tab>
+
+                  <uib-tab active="selectedTab.events" ng-if="'events' | canI : 'watch'">
+                    <uib-tab-heading>Events</uib-tab-heading>
+                    <events resource-kind="Pod" resource-name="{{pod.metadata.name}}" project-context="projectContext" ng-if="selectedTab.events"></events>
+                  </uib-tab>
+                </uib-tabset>
+              </div><!-- /col-* -->
+            </div>
+          </div>
+        </div><!-- /middle-content -->
+      </div><!-- /middle-container -->
+    </div><!-- /middle-section -->
+  </project-page>

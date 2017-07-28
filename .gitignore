@@ -1,0 +1,9 @@
+node_modules
+.tmp
+.sass-cache
+.bundle
+bower_components
+phantomjsdriver.log
+openshift-jvm
+/app/config.local.js
+.DS_Store

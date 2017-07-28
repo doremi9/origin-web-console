@@ -1,0 +1,312 @@
+<project-header class="top-header"></project-header>
+  <project-page>
+
+    <!-- Middle section -->
+    <div class="middle-section">
+      <div class="middle-container">
+        <div class="middle-header">
+          <div class="container-fluid">
+            <breadcrumbs breadcrumbs="breadcrumbs"></breadcrumbs>
+            <alerts alerts="alerts"></alerts>
+            <div>
+              <h1>
+                {{deploymentConfigName}}
+
+                <div class="pull-right dropdown" ng-if="deploymentConfig" ng-hide="!('deploymentConfigs' | canIDoAny)">
+                  <!-- Primary Actions -->
+                  <button
+                      ng-if="'deploymentconfigs' | canI : 'update'"
+                      class="btn btn-default hidden-xs"
+                      ng-click="startLatestDeployment()"
+                      ng-disabled="!canDeploy()">
+                    Deploy
+                  </button>
+
+                  <!-- Secondary Actions -->
+                  <button type="button" class="dropdown-toggle btn btn-default actions-dropdown-btn hidden-xs" data-toggle="dropdown">
+                    Actions
+                    <span class="caret" aria-hidden="true"></span>
+                  </button>
+                  <a href=""
+                     class="dropdown-toggle actions-dropdown-kebab visible-xs-inline"
+                     data-toggle="dropdown"><i class="fa fa-ellipsis-v"></i><span class="sr-only">Actions</span></a>
+                  <ul class="dropdown-menu actions action-button">
+                    <li class="visible-xs-inline" ng-class="{ disabled: !canDeploy() }" ng-if="'deploymentconfigs' | canI : 'update'">
+                      <a href=""
+                        role="button"
+                        ng-attr-aria-disabled="{{canDeploy() ? undefined : 'true'}}"
+                        ng-class="{ 'disabled-link': !canDeploy() }"
+                        ng-click="startLatestDeployment()">Deploy</a>
+                    </li>
+                    <li ng-if="'deploymentconfigs' | canI : 'update'">
+                      <a ng-href="project/{{project.metadata.name}}/attach-pvc?kind=DeploymentConfig&name={{deploymentConfig.metadata.name}}"
+                         role="button">Attach Storage</a>
+                    </li>
+                    <li ng-if="'deploymentconfigs' | canI : 'update'">
+                      <a ng-href="project/{{projectName}}/set-limits?kind=DeploymentConfig&name={{deploymentConfig.metadata.name}}"
+                        role="button">Set Resource Limits</a>
+                    </li>
+                    <li ng-if="!autoscalers.length && ({resource: 'horizontalpodautoscalers', group: 'extensions'} | canI : 'create')">
+                      <!-- Create a new HPA. -->
+                      <a ng-href="project/{{projectName}}/edit/autoscaler?kind=DeploymentConfig&name={{deploymentConfig.metadata.name}}"
+                         role="button">Add Autoscaler</a>
+                    </li>
+                    <li ng-if="autoscalers.length === 1 && ({resource: 'horizontalpodautoscalers', group: 'extensions'} | canI : 'update')">
+                      <!-- Edit an existing HPA. -->
+                      <a ng-href="project/{{projectName}}/edit/autoscaler?kind=HorizontalPodAutoscaler&group=extensions&name={{autoscalers[0].metadata.name}}"
+                        role="button">Edit Autoscaler</a>
+                    </li>
+                    <li ng-if="'deploymentconfigs' | canI : 'update'">
+                      <a ng-href="{{healthCheckURL}}" role="button">Edit Health Checks</a>
+                    </li>
+                    <li ng-if="'deploymentconfigs' | canI : 'update'">
+                      <a ng-href="{{deploymentConfig | editYamlURL}}" role="button">Edit YAML</a>
+                    </li>
+                    <li ng-if="'deploymentconfigs' | canI : 'delete'">
+                      <delete-link
+                        kind="DeploymentConfig"
+                        resource-name="{{deploymentConfig.metadata.name}}"
+                        project-name="{{deploymentConfig.metadata.namespace}}"
+                        alerts="alerts"
+                        hpa-list="autoscalers">
+                      </delete-link>
+                    </li>
+                  </ul>
+                </div>
+                <!-- <span ng-if="deploymentConfig.status.details.message" class="pficon pficon-warning-triangle-o" style="cursor: help;" data-toggle="popover" data-trigger="hover" dynamic-content="{{deploymentConfig.status.details.message}}"></span> -->
+                <small class="meta" ng-if="deploymentConfig">created <relative-timestamp timestamp="deploymentConfig.metadata.creationTimestamp"></relative-timestamp></small>
+              </h1>
+              <labels labels="deploymentConfig.metadata.labels" clickable="true" kind="deployments" title-kind="deployment configs" project-name="{{deploymentConfig.metadata.namespace}}" limit="3"></labels>
+            </div>
+          </div>
+        </div><!-- /middle-header-->
+        <div class="middle-content" persist-tab-state>
+          <div class="container-fluid">
+            <div ng-if="!loaded">Loading...</div>
+            <div class="row" ng-if="loaded">
+              <div class="col-md-12" ng-class="{ 'hide-tabs' : !deploymentConfig }">
+                <uib-tabset>
+                  <uib-tab active="selectedTab.details">
+                    <uib-tab-heading>Details</uib-tab-heading>
+                    <div class="resource-details" ng-if="deploymentConfig">
+                      <div class="row">
+                        <div class="col-lg-6">
+                          <h3>Configuration</h3>
+                          <dl class="dl-horizontal left">
+                            <dt>Selectors:</dt>
+                            <dd>
+                              <selector selector="deploymentConfig.spec.selector"></selector>
+                            </dd>
+                            <dt>Replicas:</dt>
+                            <dd>
+                              <replicas spec="deploymentConfig.spec.replicas"
+                                        disable-scaling="autoscalers.length || deploymentInProgress"
+                                        scale-fn="scale(replicas)"
+                                        deployment="deploymentConfig"></replicas>
+                              <span ng-if="autoscalers.length">(autoscaled)</span>
+                            </dd>
+                            <div ng-if="deploymentConfig.spec.strategy.type">
+                                <dt>Strategy:</dt>
+                                <dd>{{deploymentConfig.spec.strategy.type}}</dd>
+                            </div>
+                            <div ng-if="deploymentConfig.spec.strategy.rollingParams">
+                              <dt>Update Period:</dt>
+                              <dd>{{deploymentConfig.spec.strategy.rollingParams.updatePeriodSeconds}} sec</dd>
+                              <dt>Interval:</dt>
+                              <dd>{{deploymentConfig.spec.strategy.rollingParams.intervalSeconds}} sec</dd>
+                              <dt>Timeout:</dt>
+                              <dd>{{deploymentConfig.spec.strategy.rollingParams.timeoutSeconds}} sec</dd>
+                              <dt>Max Unavailable:</dt>
+                              <dd>{{deploymentConfig.spec.strategy.rollingParams.maxUnavailable}}</dd>
+                              <dt>Max Surge:</dt>
+                              <dd>{{deploymentConfig.spec.strategy.rollingParams.maxSurge}}</dd>
+                            </div>
+                            <!-- TODO: Surface the parameters for the recreate and custom strategies -->
+                          </dl>
+                          <h3>Template</h3>
+                          <pod-template
+                              pod-template="deploymentConfig.spec.template"
+                              images-by-docker-reference="imagesByDockerReference"
+                              builds="builds"
+                              detailed="true"
+                              add-health-check-url="{{('deploymentconfigs' | canI : 'update') ? healthCheckURL : ''}}">
+                          </pod-template>
+                          <h4>Volumes</h4>
+                          <p ng-if="!deploymentConfig.spec.template.spec.volumes.length">
+                            <a ng-if="'deploymentconfigs' | canI : 'update'"
+                              ng-href="project/{{project.metadata.name}}/attach-pvc?kind=DeploymentConfig&name={{deploymentConfig.metadata.name}}">Attach storage</a>
+                            <span ng-if="!('deploymentconfigs' | canI : 'update')">none</span>
+                          </p>
+                          <volumes volumes="deploymentConfig.spec.template.spec.volumes" namespace="project.metadata.name"></volumes>
+                        </div>
+
+                        <!-- Autoscaling -->
+                        <div class="col-lg-6">
+                          <h3>Autoscaling</h3>
+
+                          <!-- Show any warnings. -->
+                          <div ng-repeat="warning in hpaWarnings" class="alert alert-warning">
+                            <span class="pficon pficon-warning-triangle-o" aria-hidden="true"></span>
+                            <span class="sr-only">Warning:</span>
+                            {{warning.message}}
+
+                            <!-- If the CPU request is missing, add an action to set one. -->
+                            <a ng-href="project/{{projectName}}/set-limits?dcName={{deploymentConfig.metadata.name}}"
+                               ng-if="warning.reason === 'NoCPURequest' && 'deploymentconfigs' | canI : 'update'"
+                               role="button">Set resource
+                              <span ng-if="!('cpu' | isRequestCalculated : project)">requests and</span> limits</a>
+                          </div>
+
+                          <!-- Create autoscaler -->
+                          <div ng-if="!autoscalers.length">
+                            <a ng-if="{resource: 'horizontalpodautoscalers', group: 'extensions'} | canI : 'create'" ng-href="project/{{projectName}}/edit/autoscaler?kind=DeploymentConfig&name={{deploymentConfig.metadata.name}}"
+                               role="button">Add autoscaler</a>
+                            <span ng-if="!({resource: 'horizontalpodautoscalers', group: 'extensions'} | canI : 'create')">Autoscaling is not enabled. There are no autoscalers for this deployment config.</span>
+                          </div>
+
+                          <!-- HPA details -->
+                          <div ng-repeat="hpa in autoscalers">
+                            <h4>{{hpa.metadata.name}}</h4>
+                            <hpa hpa="hpa" project="project" show-scale-target="false" alerts="alerts"></hpa>
+                          </div>
+                        </div>
+
+                        <div class="col-lg-6">
+                          <h3>Triggers</h3>
+                          <dl class="dl-horizontal left">
+                            <dt>Manual (CLI):
+                              <a href="{{'deployment-operations' | helpLink}}" target="_blank">
+                                <span class="learn-more-block">Learn more <i class="fa fa-external-link"> </i></span>
+                              </a>
+                            </dt>
+                            <dd>
+                              <copy-to-clipboard clipboard-text="'oc deploy ' + deploymentConfig.metadata.name + ' --latest -n ' + project.metadata.name"></copy-to-clipboard>
+                            </dd>
+                            <div ng-repeat="trigger in deploymentConfig.spec.triggers">
+                              <span ng-switch="trigger.type">
+                                <span ng-switch-default>{{trigger.type}}</span>
+                                <span ng-switch-when="ImageChange" ng-if="trigger.imageChangeParams.from">
+                                  <dt>New image for:</dt>
+                                  <dd>{{trigger.imageChangeParams.from | imageObjectRef : deploymentConfig.metadata.namespace}}</dd>
+                                </span>
+                                <span ng-switch-when="ConfigChange">
+                                  <dt>Change of:</dt>
+                                  <dd>Config</dd>
+                                </span>
+                              </span>
+                            </div>
+                          </dl>
+                        </div>
+                      </div>
+                      <annotations annotations="deploymentConfig.metadata.annotations"></annotations>
+                    </div>
+                    <div ng-if="loaded">
+                      <div class="table-filter-wrapper">
+                        <project-filter></project-filter>
+                      </div>
+                      <table class="table table-bordered table-hover table-mobile">
+                        <thead>
+                          <tr>
+                            <th>Deployment</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Trigger</th>
+                          </tr>
+                        </thead>
+                        <tbody ng-if="(deployments | hashSize) == 0">
+                          <tr><td colspan="4"><em>{{emptyMessage}}</em></td></tr>
+                        </tbody>
+                        <tbody ng-repeat="deployment in deployments | orderObjectsByDate : true">
+                          <tr>
+                            <td data-title="Deployment">
+                              <!-- Deployment number and link -->
+                              <span ng-if="deployment | annotation : 'deploymentVersion'">
+                                <a ng-href="{{deployment | navigateResourceURL}}">#{{deployment | annotation : 'deploymentVersion'}}</a>
+                                <span ng-if="deploymentConfig.status.latestVersion == (deployment | annotation : 'deploymentVersion')">(latest)</span>
+                              </span>
+                            </td>
+                            <td data-title="Status">
+                              <div row class="status">
+                                <status-icon status="deployment | deploymentStatus" disable-animation fixed-width="true"></status-icon>
+                                <span flex>
+                                  {{deployment | deploymentStatus}}<span ng-if="(deployment | deploymentStatus) == 'Active' || (deployment | deploymentStatus) == 'Running'">,
+                                  <span ng-if="deployment.spec.replicas !== deployment.status.replicas">{{deployment.status.replicas}}/</span>{{deployment.spec.replicas}} replica<span ng-if="deployment.spec.replicas != 1">s</span></span>
+                                </span>
+                                <!-- TODO would be nice to have the deploymentStatusReason in a popup, when there is one -->
+                              </div>
+                            </td>
+                            <td data-title="Created">
+                              <relative-timestamp timestamp="deployment.metadata.creationTimestamp"></relative-timestamp>
+                            </td>
+                            <td data-title="Trigger">
+                              <span ng-if="!deployment.causes.length">Unknown</span>
+                              <span ng-if="deployment.causes.length">
+                                <span ng-repeat="cause in deployment.causes">
+                                  <span ng-switch="cause.type">
+                                    <span ng-switch-when="ImageChange">
+                                      <span ng-if="cause.imageTrigger.from">
+                                        <abbr title="{{cause.imageTrigger.from | imageObjectRef : null : true}}">Image</abbr> change
+                                      </span>
+                                    </span>
+                                    <span ng-switch-when="ConfigChange">Config change</span>
+                                    <span ng-switch-default>{{cause.type}}</span>
+                                  </span>
+                                </span>
+                              </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                      </table>
+                    </div>
+                  </uib-tab>
+                  <uib-tab heading="Environment" active="selectedTab.environment" ng-if="deploymentConfig">
+                    <uib-tab-heading>Environment</uib-tab-heading>
+                    <ng-form name="forms.dcEnvVars">
+                      <div ng-repeat="container in updatedDeploymentConfig.spec.template.spec.containers">
+                        <h3>Container {{container.name}} Environment Variables</h3>
+                        <key-value-editor
+                          ng-if="!('deploymentconfigs' | canI : 'update')"
+                          entries="container.env"
+                          key-placeholder="Name"
+                          value-placeholder="Value"
+                          cannot-add
+                          cannot-sort
+                          cannot-delete
+                          is-readonly
+                          show-header></key-value-editor>
+                        <key-value-editor
+                          ng-if="'deploymentconfigs' | canI : 'update'"
+                          entries="container.env"
+                          key-placeholder="Name"
+                          value-placeholder="Value"
+                          key-validator="[A-Za-z_][A-Za-z0-9_]*"
+                          key-validator-error="Please enter a valid key"
+                          key-validator-error-tooltip="A valid environment variable name is an alphanumeric (a-z and 0-9) string beginning with a letter that may contain underscores."
+                          add-row-link="Add environment variable"
+                          show-header></key-value-editor>
+                      </div>
+                      <button
+                        class="btn btn-default"
+                        ng-if="'deploymentconfigs' | canI : 'update'"
+                        ng-click="saveEnvVars()"
+                        ng-disabled="forms.dcEnvVars.$pristine || forms.dcEnvVars.$invalid">Save</button>
+                      <a
+                        ng-if="!forms.dcEnvVars.$pristine"
+                        href=""
+                        ng-click="clearEnvVarUpdates()"
+                        class="mar-left-sm"
+                        style="vertical-align: -2px;">Clear changes</a>
+                    </ng-form>
+                  </uib-tab>
+                  <uib-tab active="selectedTab.events" ng-if="'events' | canI : 'watch'">
+                    <uib-tab-heading>Events</uib-tab-heading>
+                    <events resource-kind="DeploymentConfig" resource-name="{{deploymentConfig.metadata.name}}" project-context="projectContext" ng-if="selectedTab.events"></events>
+                  </uib-tab>
+                </uib-tabset>
+              </div><!-- /col-* -->
+            </div>
+          </div>
+        </div><!-- /middle-content -->
+      </div><!-- /middle-container -->
+    </div><!-- /middle-section -->
+  </project-page>

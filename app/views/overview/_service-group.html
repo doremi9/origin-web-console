@@ -1,0 +1,97 @@
+<div class="service-group">
+  <div class="service-group-header"
+       ng-if="service.metadata.labels.app || displayRoute"
+       ng-click="toggleCollapse($event)"
+       ng-class="{ 'has-app-label': appName }">
+    <h2 ng-if="appName" class="app-name">
+      <i class="fa fa-angle-down fa-fw" aria-hidden="true" ng-if="!collapse"></i>
+      <i class="fa fa-angle-right fa-fw" aria-hidden="true" ng-if="collapse"></i>
+      {{appName | startCase}}
+    </h2>
+    <h3 class="route-title truncate">
+      <span ng-if="appName && (displayRoute | isWebRoute)">
+        <i class="fa fa-external-link small" aria-hidden="true"></i>
+      </span>
+      <span ng-if="!appName">
+        <i class="fa fa-angle-down fa-fw" aria-hidden="true" ng-if="!collapse"></i>
+        <i class="fa fa-angle-right fa-fw" aria-hidden="true" ng-if="collapse"></i>
+      </span>
+      <a ng-if="displayRoute | isWebRoute" target="_blank"
+         ng-href="{{displayRoute | routeWebURL}}">{{displayRoute | routeLabel}}</a>
+      <span ng-if="displayRoute && !(displayRoute | isWebRoute)">{{displayRoute | routeLabel}}</span>
+      <span ng-if="routeWarningsByService[service.metadata.name] && routesByService[service.metadata.name].length === 1">
+        <route-warnings warnings="routeWarningsByService[service.metadata.name]"></route-warnings>
+      </span>
+      <small ng-if="(primaryServiceRoutes | hashSize) > 1" class="other-routes-msg">
+        and
+        <a ng-href="project/{{projectName}}/browse/routes">{{(primaryServiceRoutes | hashSize) - 1}} other route<span ng-if="(primaryServiceRoutes | hashSize) > 2">s</span></a>
+      </small>
+    </h3>
+    <span ng-if="!displayRoute" class="create-route-link">
+      <a ng-if="'routes' | canI : 'create'" ng-href="project/{{service.metadata.namespace}}/create-route?service={{service.metadata.name}}">Create Route</a>
+    </span>
+  </div>
+  <div>
+    <div class="service-group-triggers">
+      <div ng-repeat="dc in deploymentConfigsByService[service.metadata.name || '']">
+        <div row ng-repeat="pipeline in recentPipelinesByDC[dc.metadata.name] | orderObjectsByDate : true track by (pipeline | uid)"
+            class="animate-repeat hide-ng-leave">
+          <build-pipeline flex build="pipeline" collapse-stages-on-completion="true" build-config-name-on-expanded="true"></build-pipeline>
+        </div>
+        <div>
+          <triggers triggers="dc.spec.triggers" builds-by-output-image="recentBuildsByOutputImage" namespace="dc.metadata.namespace"></triggers>
+        </div>
+      </div>
+    </div>
+      <!-- FIXME unserviced things should only be getting the notifications that apply to them but reusing service group to show all
+           unserviced things makes the notifications show up as a big block at the end of all of them -->
+      <service-group-notifications
+          ng-if="service"
+          collapsed="collapse"
+          deployment-configs-by-service="deploymentConfigsByService"
+          deployments-by-service="deploymentsByService"
+          child-services="childServices"
+          service="service"
+          pods-by-owner-uid="podsByOwnerUID">
+      </service-group-notifications>
+      <div uib-collapse="collapse" class="service-group-body">
+        <!--
+          Add a single-alternate-service class if the route has exactly one alternate backend so we
+          can render that common case specially.
+        -->
+        <div class="overview-services"
+             ng-class="{ 'single-alternate-service': (alternateServices | hashSize) === 1 && totalWeight }">
+          <overview-service ng-init="isPrimary = true" class="primary-service"></overview-service>
+          <overview-service
+              ng-init="isAlternate = true"
+              ng-repeat="service in alternateServices"
+              class="alternate-service">
+          </overview-service>
+          <overview-service
+              ng-init="isChild = true"
+              ng-repeat="service in childServices">
+          </overview-service>
+
+          <div flex column ng-if="alternateServices.length === 0 && childServices.length === 0 && service" class="no-child-services-block">
+            <div class="no-child-services-message">
+              <div class="pad-xxl">
+                <!-- <div class="blank-state-icon"> -->
+                <!--   <span class="pficon pficon pficon-add-circle-o" aria-hidden="true"></span> -->
+                <!-- </div> -->
+                <h2>No grouped services.</h2>
+                <p>
+                  No services are grouped with <a ng-href="{{service | navigateResourceURL}}">{{service.metadata.name}}</a>.
+                  <span ng-if="(services | hashSize) > 1 && 'services' | canI : 'update'">Add a service to group them together.</span>
+                </p>
+                <div ng-if="(services | hashSize) > 1 && 'services' | canI : 'update'">
+                  <button class="btn btn-primary" ng-click="linkService()">
+                    Group Service
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+  </div>
+</div>

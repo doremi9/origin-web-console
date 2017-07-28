@@ -1,0 +1,104 @@
+<project-header class="top-header"></project-header>
+  <project-page>
+
+  <!-- Middle section -->
+  <div class="middle-section">
+    <div class="middle-container">
+      <div class="middle-header header-light">
+        <div class="container-fluid">
+          <div class="page-header page-header-bleed-right page-header-bleed-left">
+            <h1>Builds</h1>
+          </div>
+          <alerts alerts="alerts"></alerts>
+          <div ng-if="!renderOptions.showGetStarted" class="data-toolbar">
+            <div class="data-toolbar-filter">
+              <project-filter></project-filter>
+            </div>
+          </div>
+        </div>
+      </div><!-- /middle-header-->
+      <div class="middle-content">
+        <div class="container-fluid">
+          <div class="row">
+            <div class="col-md-12 gutter-top">
+              <table class="table table-bordered table-hover table-mobile">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Last Build</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Type</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody ng-if="!(latestByConfig | hashSize)">
+                  <tr><td colspan="6"><em>{{emptyMessage}}</em></td></tr>
+                </tbody>
+                <tbody ng-repeat="(buildConfigName, latestBuild) in latestByConfig">
+                  <!-- Build config with no builds-->
+                  <tr ng-if="!latestBuild">
+                    <td data-title="Name">
+                      <a href="{{buildConfigs[buildConfigName] | navigateResourceURL}}">{{buildConfigName}}</a>
+                    </td>
+                    <td data-title="Last Build"><em>No builds</em></td>
+                    <td class="hidden-xs">&nbsp;</td>
+                    <td class="hidden-xs">&nbsp;</td>
+                    <td data-title="Type">{{buildConfigs[buildConfigName].spec.strategy.type | startCase}}</td>
+                    <td data-title="Source">
+                      <span ng-if="buildConfigs[buildConfigName].spec.source.type == 'None'"><i>none</i></span>
+                      <span class="word-break" ng-if="buildConfigs[buildConfigName].spec.source.type == 'Git'" ><osc-git-link
+                                            uri="buildConfigs[buildConfigName].spec.source.git.uri"
+                                            ref="buildConfigs[buildConfigName].spec.source.git.ref"
+                                            context-dir="buildConfigs[buildConfigName].spec.source.contextDir">{{buildConfigs[buildConfigName].spec.source.git.uri}}</osc-git-link></span></td>
+                  </tr>
+                  <!-- Build config with builds, or builds whose build config has since been deleted -->
+                  <!-- We only show the first build from a build config for now-->
+                  <tr ng-if="latestBuild && (buildConfigs[buildConfigName] || !unfilteredBuildConfigs[buildConfigName])">
+                    <td data-title="Name">
+                      <a ng-if="buildConfigName" href="{{latestBuild | configURLForResource}}">{{buildConfigName}}</a>
+                      <span ng-if="buildConfigs && buildConfigName && !buildConfigs[buildConfigName]" class="pficon pficon-warning-triangle-o" data-toggle="tooltip" title="This build config no longer exists" style="cursor: help;"></span>
+                      <span ng-if="buildConfigName == ''"><em>none</em></span>
+                    </td>
+                    <td data-title="Last Build">
+                      <!-- Build number and link -->
+                      <span ng-if="(latestBuild | annotation : 'buildNumber') && buildConfigName">
+                        <a ng-href="{{latestBuild | navigateResourceURL}}">#{{latestBuild | annotation : 'buildNumber'}}</a>
+                      </span>
+                      <span ng-if="!(latestBuild | annotation : 'buildNumber') && buildConfigName">
+                        <a ng-href="{{latestBuild | navigateResourceURL}}">{{latestBuild.metadata.name}}</a>
+                      </span>
+                      <span ng-if="buildConfigName == ''">
+                        <a ng-href="{{latestBuild | navigateResourceURL}}">{{latestBuild.metadata.name}}</a>
+                      </span>
+                    </td>
+                    <td data-title="Status">
+                      <div row class="status">
+                        <build-status build="latestBuild"></build-status>
+                      </div>
+                    </td>
+                    <td data-title="Created">
+                      <relative-timestamp timestamp="latestBuild.metadata.creationTimestamp"></relative-timestamp>
+                    </td>
+                    <td data-title="Type">{{latestBuild.spec.strategy.type | startCase}}</td>
+                    <td data-title="Source" class="word-break-all">
+                      <span ng-if="latestBuild.spec.source">
+                        <span ng-if="latestBuild.spec.source.type == 'None'">
+                          <i>none</i>
+                        </span>
+                        <span class="word-break"><osc-git-link
+                              uri="latestBuild.spec.source.git.uri"
+                              ref="latestBuild.spec.source.git.ref"
+                              context-dir="latestBuild.spec.source.contextDir">{{latestBuild.spec.source.git.uri}}</osc-git-link></span>
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div><!-- /col-* -->
+          </div>
+        </div>
+      </div><!-- /middle-content -->
+    </div><!-- /middle-container -->
+  </div><!-- /middle-section -->
+  </project-page>
